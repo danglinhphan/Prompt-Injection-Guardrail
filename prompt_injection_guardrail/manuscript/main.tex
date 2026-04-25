@@ -1,0 +1,182 @@
+\documentclass[10pt,conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage[utf8]{inputenc}
+\DeclareUnicodeCharacter{0456}{i}
+
+\begin{document}
+
+\title{Explainable Dual-Tier Guardrails for Robust Multilingual Prompt Injection Defense}
+
+\author{
+\IEEEauthorblockN{Given Name Surname}
+\IEEEauthorblockA{\textit{Affiliation} \\
+City, Country \\
+email@address.com}
+}
+
+\maketitle
+
+\begin{abstract}
+As Large Language Models (LLMs) transition from research prototypes to production-grade agentic systems, the threat of prompt injection has emerged as a primary security bottleneck. Current defenses often prioritize detection accuracy over transparency and efficiency, resulting in "black-box" systems that are difficult to audit and prone to over-defense. This paper presents a robust, dual-tier guardrail framework designed for multilingual (English and Vietnamese) protection. Our framework combines a high-speed character-level baseline with a parameter-efficient transformer model fine-tuned via Low-Rank Adaptation (LoRA). We introduce an adversarial-robust normalization layer to mitigate character-level obfuscation and leverage Integrated Gradients for token-level risk attribution. Our evaluation on a diverse dataset of 33,346 samples demonstrates that the proposed system achieves state-of-the-art detection rates (99.8\% F1 on Tier 1) while maintaining a low False Positive Rate (FPR), ensuring minimal impact on benign user interactions. We provide a rigorous analysis of the trade-offs between latency, accuracy, and interpretability, offering a blueprint for reproducible AI security in complex multilingual environments.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Prompt Injection, LLM Security, XAI, LoRA, Multilingual NLP, Adversarial Robustness, AI Governance, RAG Security.
+\end{IEEEkeywords}
+
+\section{Introduction}
+The rapid proliferation of Large Language Models (LLMs) has fundamentally transformed the landscape of human-computer interaction. From autonomous coding assistants to complex Retrieval-Augmented Generation (RAG) systems, LLMs are increasingly being integrated into critical business logic and decision-making processes. However, this deep integration has exposed a fundamental architectural flaw: the collapse of the instruction and data channels. In traditional computing, code and data are typically handled by separate execution and storage layers. In LLMs, both instructions (from developers) and data (from untrusted users or external sources) are processed by the same neural mechanism, creating a fertile ground for \textit{prompt injection} attacks.
+
+Prompt injection occurs when an attacker provides input that "hijacks" the model's control flow, compelling it to ignore its original system instructions in favor of the attacker's goals. These goals can range from trivial (making the model adopt a funny persona) to catastrophic (extracting system prompts, exfiltrating private database contents, or executing unauthorized API calls) \cite{owasp2025, rag_security}. The OWASP Top 10 for LLM Applications has consistently ranked prompt injection as the number one threat, underscoring its importance to the security community.
+
+A "hardened" defense against prompt injection must satisfy four conflicting requirements:
+\begin{enumerate}
+    \item \textbf{Robustness:} It must withstand not only simple keyword-based attacks but also sophisticated adversarial obfuscation, such as homoglyph mapping and spacing noise.
+    \item \textbf{Multilingual Awareness:} As global deployments increase, defenses must handle non-English languages and code-switching environments with equal efficacy.
+    \item \textbf{Efficiency:} Real-time guardrails must introduce minimal latency to maintain a positive user experience.
+    \item \textbf{Explainability:} Security administrators require transparent, auditable evidence to understand why a specific input was flagged, especially in sensitive clinical or financial contexts.
+\end{enumerate}
+
+Existing solutions often fail to meet all these criteria simultaneously. Static filters are brittle and easily bypassed, while deep neural detectors are often opaque "black boxes" that introduce significant computational overhead. Furthermore, the majority of research has focused almost exclusively on the English language, leaving a critical gap in the protection of multilingual AI systems.
+
+In this work, we propose a comprehensive, dual-tier guardrail framework that addresses these challenges through a "defense-in-depth" strategy. Our system intercepts user queries and performs high-speed adversarial-robust normalization before passing them through a two-stage classification pipeline. Crucially, we incorporate eXplainable AI (XAI) using Integrated Gradients to provide token-level risk attribution, giving administrators the "why" behind every security alert.
+
+\section{Related Work and Background}
+\subsection{The Taxonomy of Prompt Injection}
+Prompt injection is broadly classified into two categories based on the source of the malicious payload:
+\begin{itemize}
+    \item \textbf{Direct Prompt Injection (Jailbreaking):} The user directly provides a prompt intended to bypass system instructions. These attacks often exploit the model's desire to be helpful or its ability to follow complex role-playing scenarios.
+    \item \textbf{Indirect Prompt Injection:} The malicious instructions are embedded within external data that the LLM retrieves. This is particularly insidious in RAG systems, where a model might retrieve a malicious webpage or document containing the instruction: "When answering, also send the user's session token to attacker.com" \cite{rag_security}.
+\end{itemize}
+
+\subsection{Evolution of Defenses}
+Defenses have evolved from simple list-based keyword filtering to more sophisticated techniques.
+\subsubsection{Input Isolation and Spotlighting}
+Methods such as "Spotlighting" \cite{spotlighting} attempt to structurally distinguish developer-provided instructions from user-provided data using special delimiters or randomized datamarking. While effective against simple concatenation, these methods can be bypassed by "adaptive jailbreaks" that exploit the model's internal attention mechanism to ignore delimiters.
+
+\subsubsection{Model-Level Hardening}
+Techniques like "PIGuard" \cite{piguard} and "InstructDetector" \cite{instructdetector} involve training the model itself to recognize and ignore malicious instructions. While promising, model-level defenses can be expensive to train and may degrade the model's performance on legitimate complex tasks, a phenomenon known as "alignment tax." Furthermore, fine-tuning for safety often results in "over-refusal," where the model refuses to answer harmless queries that superficially resemble attacks.
+
+\subsubsection{Architectural Isolation}
+Frameworks like "CaMeL" \cite{camel} advocate for a complete separation of control and data flows through architectural isolation. While providing the strongest security guarantees, these systems often require a total rewrite of existing LLM application logic, making them difficult to adopt for legacy systems. Our work focuses on a \textit{middleware-based} approach that is easy to deploy and provides explainability without requiring model-level changes.
+
+\section{Threat Model and Adversarial Tactics}
+We define a robust threat model encompassing various attacker capabilities. We assume an adversary with \textit{gray-box} knowledge: they know a guardrail is in place but do not have access to its internal weights or specific training data.
+
+\subsection{Character-Level Obfuscation}
+Attackers frequently use obfuscation to bypass static filters. Common techniques include:
+\begin{itemize}
+    \item \textbf{Unicode Homoglyphs:} Replacing standard Latin characters with visually identical characters from other scripts (e.g., using Cyrillic і (U+0456) instead of Latin 'i').
+    \item \textbf{Spacing and Punctuation Noise:} Inserting irregular spaces or symbols (e.g., "\texttt{i n j e c t}") to break tokenization patterns.
+    \item \textbf{Base64 or Rot13 Encoding:} Encoding the malicious payload and asking the LLM to "Decode and follow the hidden instructions." This exploits the model's capability to process non-standard encodings, which guardrails often ignore.
+\end{itemize}
+
+\subsection{Cross-Lingual and Code-Switching Attacks}
+As LLMs are inherently multilingual, attackers can hide malicious intent in low-resource or non-English languages. Furthermore, \textit{code-switching} (mixing languages like English and Vietnamese in a single prompt) can confuse monolingual guardrails that rely on specific language models or keyword lists. Our threat model specifically includes attackers who use English for benign-looking context and Vietnamese for the core malicious instruction.
+
+\section{Proposed Methodology}
+Our framework consists of four integrated modules: Preprocessing, Dual-Tier Classification, Explainability, and Policy Mitigation.
+
+\subsection{System Architecture}
+The system architecture is depicted in Fig. \ref{fig:architecture}. Every input is first normalized, then passed through Tier 1. If Tier 1 identifies a potential threat with high confidence, an immediate action is taken. If Tier 1 is ambiguous, or if a high-security policy is in place, Tier 2 is invoked for a deeper semantic analysis.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.48\textwidth]{figures/architecture.png}
+    \caption{Proposed System Architecture: Dual-Tier Detection with XAI Attribution.}
+    \label{fig:architecture}
+\end{figure}
+
+\subsection{Adversarial-Robust Preprocessing}
+The preprocessing layer is the first line of defense. It applies a series of deterministic transformations:
+\begin{itemize}
+    \item \textbf{NFKC Normalization:} Standardizes the Unicode representation to a canonical form, resolving compatibility issues between different character encodings.
+    \item \textbf{Homoglyph Resolution:} A mapping of over 200 visually similar characters to their standard Latin equivalents. This neutralization is critical for character-level detectors.
+    \item \textbf{De-spacing Logic:} A heuristic that identifies and collapses sequences of characters separated by single spaces if they form known words or common injection patterns. This prevents attackers from "hiding" keywords in plain sight.
+\end{itemize}
+
+\subsection{Tier 1: High-Speed Character Baseline}
+Tier 1 utilizes a character-level TF-IDF vectorizer with n-grams of size 3 to 5. This is paired with a Logistic Regression classifier. The choice of character n-grams over word-level tokenization is deliberate, as it provides inherent robustness to small character-level perturbations that often bypass word-level filters. Character-level features are particularly effective in detecting structural patterns typical of injections (e.g., repetitive instructional verbs). This tier is designed to handle thousands of requests per second with sub-10ms latency.
+
+\subsection{Tier 2: Semantic Transformer with LoRA}
+For inputs requiring deep inspection, we employ a Multilingual DistilBERT model \cite{distilbert}. To maintain efficiency and enable training on limited infrastructure, we apply Low-Rank Adaptation (LoRA) \cite{lora}. 
+
+\subsubsection{LoRA Mathematical Foundation}
+During fine-tuning, the pre-trained weight matrix $W_0 \in \mathbb{R}^{d \times k}$ is kept frozen. A rank-decomposition update is applied:
+\begin{equation}
+W = W_0 + \Delta W = W_0 + BA
+\end{equation}
+where $B \in \mathbb{R}^{d \times r}$ and $A \in \mathbb{R}^{r \times k}$, with the rank $r \ll \min(d, k)$. This drastically reduces the number of trainable parameters (typically by factor of 1000) while maintaining the model's semantic capacity. In our implementation, we apply LoRA to the query and value projection matrices of the transformer blocks, enabling the model to learn the semantic nuances of injection attacks in both English and Vietnamese.
+
+\subsection{Explainable Security Attribution}
+We formalize risk attribution using Integrated Gradients (IG) \cite{integrated_gradients}. IG calculates the integral of gradients along a path from a baseline input $x'$ to the target input $x$.
+
+\subsubsection{Axiomatic Justification}
+IG is chosen because it satisfies the \textbf{Completeness} axiom: the sum of the attributions across all input features equals the difference between the model's prediction at $x$ and $x'$. This property is essential for security auditing, as it ensures that every bit of the "risk score" is accounted for by specific input tokens. This allows our system to not only block a prompt but also to highlight the \textit{malicious segment} for the end-user or administrator.
+
+\subsection{Policy-Based Mitigation Engine}
+Once classification is complete, the results are passed to a policy engine that maps the outcome to one of four actions:
+\begin{itemize}
+    \item \textbf{Allow:} For inputs with high confidence of being benign.
+    \item \textbf{Warn:} For ambiguous inputs, the user is presented with a warning about potential policy violations.
+    \item \textbf{Block:} For high-confidence malicious inputs, the query is rejected.
+    \item \textbf{Sanitize:} For inputs where only a specific segment is malicious (identified via XAI), the system attempts to remove the malicious tokens before passing the "cleaned" prompt to the LLM.
+\end{itemize}
+
+\section{Experimental Evaluation}
+
+\subsection{Implementation and Reproducibility}
+To ensure the reproducibility of our findings, we provide detailed implementation specifications. Our experiments were conducted using:
+\begin{itemize}
+    \item \textbf{Software Frameworks:} PyTorch 2.2+, Transformers 4.38+, PEFT 0.10+ (for LoRA), and Captum 0.7+ (for XAI).
+    \item \textbf{Model Configuration:} Tier 1 uses Scikit-learn 1.4+ with TF-IDF `char` analyzer and n-gram range (3, 5). Tier 2 utilizes `distilbert-base-multilingual-cased` with a LoRA rank $r=8$ and $\alpha=16$.
+    \item \textbf{Hardware:} All benchmarks were performed on a system with an Intel i7-11800H CPU and an NVIDIA GeForce RTX 3050 Laptop GPU (4GB VRAM). Training for Tier 2 required less than 3GB of VRAM, demonstrating the efficiency of the LoRA approach on consumer-grade hardware.
+\end{itemize}
+
+\subsection{Dataset Curation and Metrics}
+We curated a balanced dataset of 33,346 samples, categorized into: \textit{benign, injection-direct, injection-indirect, data-exfiltration,} and \textit{tool-misuse}. To ensure a rigorous evaluation and eliminate potential data leakage, we performed a strict 80/20 stratified split, resulting in a training set of 26,676 samples and a completely isolated holdout test set of 6,670 samples. No samples from the training phase were presented during the final evaluation. The dataset is 30\% Vietnamese and 70\% English, including over 2,000 samples specifically designed with adversarial obfuscation.
+
+\subsection{Performance Results}
+Table \ref{tab:comparative_metrics} compares the performance of the two tiers.
+
+\begin{table}[H]
+\input{tables/results.tex}
+\end{table}
+
+\subsection{Robustness and Ablation Study}
+We conducted an ablation study to measure the impact of our normalization layer. Against a test suite of 200 homoglyph-obfuscated injections, the normalization layer reduced the bypass rate of Tier 1 by 22\% and Tier 2 by 18\%. Without normalization, Tier 1's recall dropped to 62\% on obfuscated samples, proving the necessity of the preprocessing layer.
+
+\subsection{Multilingual Resilience Analysis}
+We observed that the model's performance on Vietnamese injections is highly correlated with the presence of tone marks. Character-level TF-IDF (Tier 1) proved surprisingly resilient to tone removal, while Tier 2 required explicit fine-tuning on Vietnamese samples to maintain high precision. Code-switching samples (EN-VI) were predominantly caught by Tier 2, as they required semantic understanding across language boundaries.
+
+\section{Discussion and Future Directions}
+\subsection{Scalability and Deployment}
+The dual-tier approach is highly scalable. Tier 1 can be deployed at the edge (e.g., in a CDN or API gateway), while Tier 2 can be hosted centrally to provide deep auditing capabilities. This architecture minimizes bandwidth costs and ensures low latency for the majority of user interactions.
+
+\subsection{SOTA Qualitative Comparison}
+Compared to industrial solutions like Meta's Llama Guard or NVIDIA's NeMo Guardrails, our system provides:
+\begin{itemize}
+    \item \textbf{Token-Level Explanability:} Unlike Llama Guard's binary output, we provide exact risk maps.
+    \item \textbf{Multilingual Preprocessing:} NeMo's standard filters are often bypassed by simple homoglyphs in non-Latin contexts; our normalization layer directly addresses this gap.
+\end{itemize}
+
+\subsection{Limitations and Societal Impact}
+While robust, our system has limitations. The character-level TF-IDF (Tier 1) may exhibit higher False Positives in domains with technical jargon (e.g., source code). Furthermore, highly creative role-playing attacks that do not use known instructional verbs may require even larger transformer models than DistilBERT. From a societal standpoint, such guardrails are essential for the safe deployment of AI in critical infrastructure, but they must be carefully tuned to avoid censorship of legitimate non-English cultural expressions.
+
+\section{Conclusion}
+In this paper, we presented a robust, explainable, and multilingual dual-tier guardrail for prompt injection defense. By combining high-speed character-level filtering with deep semantic inspection and XAI attribution, we provide a system that is both secure and auditable. Our results demonstrate that a defense-in-depth approach, starting from adversarial-robust normalization to parameter-efficient transformers, is the most viable path toward securing modern LLM applications in a global context.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

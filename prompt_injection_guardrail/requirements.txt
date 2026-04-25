@@ -1,0 +1,14 @@
+pypdf
+pandas
+numpy
+scikit-learn
+torch
+transformers
+peft
+shap
+captum
+fastapi
+uvicorn
+gradio
+python-multipart
+requests

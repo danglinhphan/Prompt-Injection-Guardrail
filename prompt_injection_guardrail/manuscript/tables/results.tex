@@ -1,0 +1,19 @@
+
+\begin{table}[H]
+\caption{Comparative Performance Metrics of Tier 1 and Tier 2 Guardrails}
+\begin{center}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Model Tier} & \textbf{Acc.} & \textbf{Prec.} & \textbf{Rec.} & \textbf{F1} & \textbf{FPR} & \textbf{FNR} \\
+\midrule
+Tier 1 (TF-IDF+LR) & 0.986 & 0.986 & 0.986 & 0.986 & 0.013 & 0.014 \\
+Tier 2 (BERT+LoRA) & 0.993 & 0.993 & 0.993 & 0.993 & 0.021 & 0.003 \\
+
+\bottomrule
+\end{tabular}
+}
+\label{tab:comparative_metrics}
+\\ \scriptsize{Note: Acc=Accuracy, Prec=Precision, Rec=Recall. FPR/FNR relative to 'benign' class.}
+\end{center}
+\end{table}

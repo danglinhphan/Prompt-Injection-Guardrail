@@ -1,0 +1,28 @@
+# Exclude root files as requested by user
+topics/
+scratch/
+/*.pdf
+/*.csv
+/*.xlsx
+/*.txt
+/*.md
+!/README.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+venv/
+ENV/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# LaTeX artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.pdf
