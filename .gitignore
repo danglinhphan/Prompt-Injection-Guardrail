@@ -1,6 +1,7 @@
-# Exclude root files as requested by user
+# User specified exclusions
 topics/
 scratch/
+**/scratch/
 /*.pdf
 /*.csv
 /*.xlsx
@@ -11,7 +12,7 @@ scratch/
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
+*.class
 .env
 venv/
 ENV/
@@ -26,3 +27,5 @@ Thumbs.db
 *.out
 *.toc
 *.pdf
+*.bbl
+*.blg
