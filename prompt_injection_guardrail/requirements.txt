@@ -12,3 +12,4 @@ uvicorn
 gradio
 python-multipart
 requests
+rich
