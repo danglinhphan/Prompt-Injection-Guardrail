@@ -29,8 +29,7 @@ def generate_metrics():
     test_df_path = os.path.join(REPO_ROOT, "data/processed/test_holdout.csv")
     test_df = pd.read_csv(test_df_path)
     # Take a representative sample for the table if it's too large, or use full
-    if len(test_df) > 1000:
-        test_df = test_df.sample(n=1000, random_state=42)
+    # Use full test set
     
     # Tier 1 Evaluation
     print("Evaluating Tier 1 (TF-IDF)...")

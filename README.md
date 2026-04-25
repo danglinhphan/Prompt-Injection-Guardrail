@@ -18,10 +18,10 @@ A production-ready, dual-tier guardrail framework designed for robust multilingu
 
 ## 📊 Performance Summary (Holdout Test Set)
 
-| Model Tier | Accuracy | Precision | Recall | F1-Score | FPR |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Tier 1 (Baseline)** | 98.6% | 0.986 | 0.986 | 0.986 | 1.3% |
-| **Tier 2 (SOTA)** | **99.3%** | **0.993** | **0.993** | **0.993** | **2.1%** |
+| Model Tier | Acc. | Prec. | Rec. | F1 | FPR | FNR |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Tier 1 (Baseline)** | 98.9% | 0.990 | 0.989 | 0.989 | 0.9% | 1.1% |
+| **Tier 2 (SOTA)** | 98.8% | 0.988 | 0.988 | 0.988 | 2.8% | **0.7%** |
 
 ## 🛠️ Installation
 
